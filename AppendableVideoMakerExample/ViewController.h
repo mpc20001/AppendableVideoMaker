@@ -14,7 +14,6 @@
 {
     AppendableVideoMaker *videoMaker;
     MPMoviePlayerController *player;
-    BOOL deviceSupportsVideoRecording;
     BOOL mergeCompleteEventReceived;
 }
 
@@ -25,7 +24,6 @@
 - (IBAction)onCreateVideo:(id)sender;
 - (IBAction)onPlayVideo:(id)sender;
 
-- (void)checkForVideoSupport;
 - (void)videoMergeCompleteHandler:(NSNotification*)notification;
 
 @end

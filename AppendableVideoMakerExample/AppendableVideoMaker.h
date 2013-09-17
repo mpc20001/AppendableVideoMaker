@@ -20,6 +20,8 @@ typedef enum
 
 @interface AppendableVideoMaker : UIImagePickerController <UIImagePickerControllerDelegate, UINavigationControllerDelegate>
 {
+    BOOL deviceSupportsVideoRecording;
+    
     NSMutableArray *videoURLs;
     NSURL *outputURL;
     
@@ -44,17 +46,18 @@ typedef enum
     CMTime startTime;
 }
 
-- (void)setMaximumVideoLength:(double)max;
+- (void)checkForAvailableMerges;
+- (void)checkForVideoSupport;
+- (void)cleanUpAndFinish;
+- (BOOL)deviceCanRecordVideos;
 - (double)getMaximumVideoLength;
-
-- (void)setQuality:(ExportQuality)vidQuality;
+- (NSURL*)getVideoURL;
 - (ExportQuality)getQuality;
-
 - (void)performAvailableMerges;
-
+- (void)setMaximumVideoLength:(double)max;
+- (void)setQuality:(ExportQuality)vidQuality;
 - (void)triggerVideoMergeComplete;
 - (void)triggerVideoMergeFailed;
 - (BOOL)videoIsReady;
-- (NSURL*)getVideoURL;
 
 @end

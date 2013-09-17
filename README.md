@@ -1,7 +1,7 @@
 ## Summary
 
 
-AppendableVideoMaker is a custom UIImagePickerController which offers Vine-like stop-start video recording functionality.</p>
+AppendableVideoMaker is a custom UIImagePickerController which offers Vine-like tap-and-hold stop-start video recording functionality.</p>
 
 
 ## How to use it
@@ -14,11 +14,22 @@ AppendableVideoMaker is a custom UIImagePickerController which offers Vine-like 
 #import "AppendableVideoMaker.h"
 ```
 <ol start="3">
-<li>Create and display an AppendableVideoMaker:</li>
-</ol><
+<li>Initialize AppendableVideoMaker and check if the device can record videos. If so, setup success/fail observers, then display the recorder:</li>
+</ol>
 ```
 AppendableVideoMaker videoMaker = [[AppendableVideoMaker alloc] init];
-[self presentViewController:videoMaker animated:YES completion:^{}];
+if ([videoMaker deviceCanRecordVideos])
+{
+	[[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(videoMergeCompleteHandler:)
+                                           		 name:@"AppendableVideoMaker_VideoMergeComplete"
+                                           	   object:nil];
+	[[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(videoMergeFailedHandler:)
+                                           		 name:@"AppendableVideoMaker_VideoMergeFailed"
+                                           	   object:nil];
+	[self presentViewController:videoMaker animated:YES completion:^{}];
+}
 ```
 <ol start="4">
 <li>Videos are saved to the Documents directory. When you have finished creating a video, check if the video is ready and get the URL path to it.</li>
@@ -26,13 +37,13 @@ AppendableVideoMaker videoMaker = [[AppendableVideoMaker alloc] init];
 ```
 if ([videoMaker videoIsReady])
 {
-NSURL *videoURL = [videoMaker getVideoURL];
-...
+	NSURL *videoURL = [videoMaker getVideoURL];
+	// do something with the video ...
 }
 ```
 
 
-## Features<
+## Features
 
 <ul>
 <li>Tap and hold video recording</li>

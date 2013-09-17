@@ -18,8 +18,6 @@
 {
     [super viewDidLoad];
     
-    [self checkForVideoSupport];
-    
     mergeCompleteEventReceived = NO;
     self.playVideoBtn.enabled = NO;
 }
@@ -31,45 +29,17 @@
     [super viewDidUnload];
 }
 
-/*
- *
- *  FUNCTIONS
- *
- */
-
-- (void)checkForVideoSupport
-{
-    // Check if the device has a camera
-    
-    if ([UIImagePickerController isSourceTypeAvailable:UIImagePickerControllerSourceTypeCamera])
-    {
-        // Check if the camera supports video
-        
-        deviceSupportsVideoRecording = [[UIImagePickerController availableMediaTypesForSourceType:UIImagePickerControllerSourceTypeCamera] containsObject:(id)kUTTypeMovie];
-    }
-    else
-    {
-        // Device does not have a camera
-        
-        deviceSupportsVideoRecording = NO;
-    }
-}
-
-/*
- *
- *  INTERACTION HANDLERS
- *
- */
+#pragma mark - Interaction Handlers (Alphabetical Order)
 
 - (IBAction)onCreateVideo:(id)sender
 {
-    if (deviceSupportsVideoRecording)
-    {
-        videoMaker = [[AppendableVideoMaker alloc] init];
-        
+    videoMaker = [[AppendableVideoMaker alloc] init];
+    
+    if ([videoMaker deviceCanRecordVideos])
+    {        
         [[NSNotificationCenter defaultCenter] addObserver:self
                                                  selector:@selector(videoMergeCompleteHandler:)
-                                                     name:@"VideoMergeComplete" object:nil];
+                                                     name:@"AppendableVideoMaker_VideoMergeComplete" object:nil];
         
         if ([self respondsToSelector:@selector(presentViewController:animated:completion:)])
         {
@@ -120,11 +90,7 @@
     }
 }
 
-/*
- *
- *  EVENT HANDLERS
- *
- */
+#pragma mark - Event Handlers
 
 - (void)videoMergeCompleteHandler:(NSNotification*)notification
 {
