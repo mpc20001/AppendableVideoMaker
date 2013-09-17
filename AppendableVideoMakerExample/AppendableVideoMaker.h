@@ -30,14 +30,30 @@ typedef enum
     double videoLength;
     double maxVideoLength;
     ExportQuality quality;
+    int lastVideoMerged;
     
     UIView* overlay;
-    UIButton *finishBtn;
+    
+    NSCondition *videoURLsCondition;
+    BOOL videoURLsLocked;
+    
+    // Video stuff
+    AVMutableComposition *composition;
+    AVMutableCompositionTrack *compVideoTrack;
+    AVMutableCompositionTrack *compAudioTrack;
+    CMTime startTime;
 }
 
 - (void)setMaximumVideoLength:(double)max;
 - (double)getMaximumVideoLength;
 
+- (void)setQuality:(ExportQuality)vidQuality;
+- (ExportQuality)getQuality;
+
+- (void)performAvailableMerges;
+
+- (void)triggerVideoMergeComplete;
+- (void)triggerVideoMergeFailed;
 - (BOOL)videoIsReady;
 - (NSURL*)getVideoURL;
 

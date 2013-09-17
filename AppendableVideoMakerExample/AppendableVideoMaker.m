@@ -13,41 +13,67 @@
 - (id)init
 {
     if (self = [super init])
-    {
+    {        
+        // Setup the variables
+        
         videoURLs = [[NSMutableArray alloc] init];
         videoLength = maxVideoLength = 0.0;
         quality = HIGH_QUALITY;
         recording = videoReady = finishing = NO;
+        videoURLsCondition = [[NSCondition alloc] init];
+        videoURLsLocked = NO;
+        
+        // Setup the actual camera controller itself, hiding all normal components
         
         self.sourceType = UIImagePickerControllerSourceTypeCamera;
         self.mediaTypes = [[NSArray alloc] initWithObjects: (NSString *) kUTTypeMovie, nil];
         self.showsCameraControls = NO;
         self.navigationBarHidden = YES;
         self.wantsFullScreenLayout = YES;
-        self.delegate = self;
-        
+        self.delegate = self;        
         self.toolbarHidden = YES;
-        [self.toolbar setBackgroundColor:[UIColor blackColor]];
-        [self.toolbar setTranslucent:NO];
+        
+        // Setup the transparent overlay for tap and hold capabilities
         
         overlay = [[UIView alloc] initWithFrame:CGRectMake(0, 0, self.view.frame.size.height, self.view.frame.size.height)];
         [overlay setBackgroundColor:[UIColor clearColor]];
         [overlay setAlpha:1.0];
         
+        // Setup the tap and hold recognizer for the transparent overlay
+        
         UILongPressGestureRecognizer *singleFingerHold = [[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(handleSingleFingerHold:)];
         [singleFingerHold setMinimumPressDuration:0.0];
-        [overlay addGestureRecognizer:singleFingerHold];
-        
+        [overlay addGestureRecognizer:singleFingerHold];        
         [self.view addSubview:overlay];
         
-        finishBtn = [[UIButton alloc] initWithFrame:CGRectMake(self.view.frame.size.height - 140, 20, 120, 40)];
-        [finishBtn setTitle:@"Finish" forState:UIControlStateNormal];
-        [finishBtn setBackgroundColor:[UIColor darkGrayColor]];
-        [finishBtn setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
-        [finishBtn addTarget:self action:@selector(onFinish:) forControlEvents:UIControlEventTouchUpInside];
+        // Setup the finish button
         
-        [self.view addSubview:finishBtn];
-        [self.view bringSubviewToFront:finishBtn];
+        UIToolbar *toolBar = [[UIToolbar alloc] initWithFrame:CGRectMake(0, 0, [UIApplication sharedApplication].statusBarFrame.size.width, 44)];
+        [toolBar setAutoresizingMask:(UIViewAutoresizingFlexibleWidth)];
+        [self.view addSubview:toolBar];
+        [self.view bringSubviewToFront:toolBar];
+        
+        UIBarButtonItem *finishBtn = [[UIBarButtonItem alloc] initWithTitle:@"Finish"
+                                                                      style:UIBarButtonItemStyleDone
+                                                                     target:self
+                                                                     action:@selector(onFinish:)];
+        UIBarButtonItem *restartBtn = [[UIBarButtonItem alloc] initWithTitle:@"Restart"
+                                                                       style:UIBarButtonItemStyleDone
+                                                                      target:self
+                                                                      action:@selector(onRestart:)];
+        UIBarButtonItem *flexSpace = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemFlexibleSpace
+                                                                                   target:self
+                                                                                   action:nil];
+        [toolBar setItems:[NSMutableArray arrayWithObjects:flexSpace, restartBtn, finishBtn, nil]];
+        
+        // Setup video stuff
+        
+        composition = [AVMutableComposition composition];
+        compVideoTrack = [composition addMutableTrackWithMediaType:AVMediaTypeVideo
+                                                  preferredTrackID:kCMPersistentTrackID_Invalid];
+        compAudioTrack = [composition addMutableTrackWithMediaType:AVMediaTypeAudio
+                                                  preferredTrackID:kCMPersistentTrackID_Invalid];
+        startTime = kCMTimeZero;
     }
     
     return self;
@@ -56,14 +82,15 @@
 - (void)handleSingleFingerHold:(UILongPressGestureRecognizer*)recognizer
 {
     if (!finishing)
-    {
-        // check for maxVideoLength
+    {        
         if (recognizer.state == UIGestureRecognizerStateBegan)
-        {
+        {            
             if (maxVideoLength > 0.0)
-            {
+            {                
                 if (videoLength < maxVideoLength)
                 {
+                    // Only allow recording if maxVideoLength has not been reached
+                    
                     [self startVideoCapture];
                     timer = CFAbsoluteTimeGetCurrent();
                     recording = YES;
@@ -83,85 +110,174 @@
                 [self stopVideoCapture];
                 videoLength += CFAbsoluteTimeGetCurrent() - timer;
                 NSLog(@"VIDEO LENGTH: %f", videoLength);
+                
+                [self checkForAvailableMerges];
             }
             recording = NO;
         }
     }
 }
 
+- (void)checkForAvailableMerges
+{
+    if (!videoURLsLocked && videoURLs.count > 0 && lastVideoMerged < (videoURLs.count))
+    {
+        // Extra videos are available for merging
+        
+        [NSThread detachNewThreadSelector:@selector(performAvailableMerges)
+                                 toTarget:self
+                               withObject:nil];
+    }
+}
+
+- (void)performAvailableMerges
+{    
+    if (videoURLsLocked)
+    {
+        // Wait for videoURLs array to unlock
+        [videoURLsCondition wait];
+    }
+    
+    [videoURLsCondition lock];
+    
+    NSMutableArray *videoURLsCopy = [videoURLs copy];
+    
+    // Working timer
+    int i = 0;
+    for (NSURL *videoURL in videoURLsCopy)
+    {
+        if (++i > lastVideoMerged)
+        {
+            [self mergeVideo:videoURL];
+            lastVideoMerged = i;
+        }
+    }
+    
+    [videoURLsCondition broadcast];
+    [videoURLsCondition unlock];
+}
+
+- (void)mergeVideo:(NSURL*)videoURL
+{
+    // Working timer
+    NSError *error = nil;
+    
+    AVURLAsset *asset = [AVURLAsset URLAssetWithURL:videoURL options:nil];
+    
+    AVAssetTrack *videoTrack = [[asset tracksWithMediaType:AVMediaTypeVideo] objectAtIndex:0];
+    [compVideoTrack insertTimeRange:CMTimeRangeMake(kCMTimeZero, [asset duration])
+                            ofTrack:videoTrack
+                             atTime:startTime
+                              error:&error];
+    
+    if ([[asset tracksWithMediaType:AVMediaTypeAudio] count])
+    {
+        AVAssetTrack *audioTrack = [[asset tracksWithMediaType:AVMediaTypeAudio] objectAtIndex:0];
+        [compAudioTrack insertTimeRange:CMTimeRangeMake(kCMTimeZero, [asset duration])
+                                ofTrack:audioTrack
+                                 atTime:startTime
+                                  error:&error];
+    }
+    
+    startTime = CMTimeAdd(startTime, [asset duration]);
+}
+
+- (void)exportVideo
+{
+    
+    NSDateFormatter *dateFormat = [[NSDateFormatter alloc] init];
+    [dateFormat setDateFormat:@"dMMMyy-HHmm"];
+    NSString *documentsPath = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) objectAtIndex:0];
+    NSString *filePath = [documentsPath stringByAppendingFormat:@"/MERGED_%@.mov", [dateFormat stringFromDate:[NSDate date]]];
+    
+    outputURL = [NSURL fileURLWithPath:filePath];
+    
+    AVAssetExportSession *exporter = [[AVAssetExportSession alloc] initWithAsset:composition presetName:(quality == LOW_QUALITY ? AVAssetExportPresetLowQuality : (quality == MEDIUM_QUALITY ? AVAssetExportPresetMediumQuality : AVAssetExportPresetHighestQuality))];
+    [exporter setOutputURL:outputURL];
+    [exporter setOutputFileType:AVFileTypeQuickTimeMovie];
+    [exporter exportAsynchronouslyWithCompletionHandler:^(void)
+     {
+         switch ([exporter status])
+         {
+             case AVAssetExportSessionStatusFailed:
+                 NSLog(@"Video (final) export failed: %@", [[exporter error] localizedDescription]);
+                 [self performSelectorOnMainThread:@selector(triggerVideoMergeFailed) withObject:nil waitUntilDone:NO];
+                 break;
+                 
+             case AVAssetExportSessionStatusCancelled:
+                 NSLog(@"Video (final) export cancelled.");
+                 [self performSelectorOnMainThread:@selector(triggerVideoMergeFailed)
+                                        withObject:nil
+                                     waitUntilDone:NO];
+                 break;
+                 
+             case AVAssetExportSessionStatusCompleted:
+                 NSLog(@"Video (final) export complete.");
+                 [self performSelectorOnMainThread:@selector(triggerVideoMergeComplete)
+                                        withObject:nil
+                                     waitUntilDone:NO];
+                 break;
+                 
+             default:
+                 break;
+         }
+     }];    
+}
+
 - (IBAction)onFinish:(id)sender
 {
-    NSLog(@"onFinish");
-    if (!finishing && videoLength > 0.0)
+    // Check if the finish button hasn't already been pressed and that there is at least one video stored
+    [self hideController];
+    
+    if (!finishing && videoURLs.count >= 1)
     {
-        finishing = YES;
-        AVMutableComposition *comp = [AVMutableComposition composition];
-        AVMutableCompositionTrack *compVideoTrack = [comp addMutableTrackWithMediaType:AVMediaTypeVideo preferredTrackID:kCMPersistentTrackID_Invalid];
-        AVMutableCompositionTrack *compAudioTrack = [comp addMutableTrackWithMediaType:AVMediaTypeAudio preferredTrackID:kCMPersistentTrackID_Invalid];
-        
-        // Working timer
-        CMTime startTime = kCMTimeZero;
-        NSError *error = nil;
-        for (NSURL *videoURL in videoURLs)
+        if (videoURLs.count == 1)
         {
-            AVURLAsset *asset = [AVURLAsset URLAssetWithURL:videoURL options:nil];
+            // If there is only one video
             
-            AVAssetTrack *videoTrack = [[asset tracksWithMediaType:AVMediaTypeVideo] objectAtIndex:0];
-            [compVideoTrack insertTimeRange:CMTimeRangeMake(kCMTimeZero, [asset duration]) ofTrack:videoTrack atTime:startTime error:&error];
+            outputURL = [videoURLs objectAtIndex:0];
             
-            if ([[asset tracksWithMediaType:AVMediaTypeAudio] count])
-            {
-                AVAssetTrack *audioTrack = [[asset tracksWithMediaType:AVMediaTypeAudio] objectAtIndex:0];
-                [compAudioTrack insertTimeRange:CMTimeRangeMake(kCMTimeZero, [asset duration]) ofTrack:audioTrack atTime:startTime error:&error];
-            }
-            
-            startTime = CMTimeAdd(startTime, [asset duration]);
+            [self cleanUpAndFinish];
         }
-        
-        NSDateFormatter *dateFormat = [[NSDateFormatter alloc] init];
-        [dateFormat setDateFormat:@"dMMMyy-HHmm"];
-        NSString *documentsPath = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) objectAtIndex:0];
-        NSString *filePath = [documentsPath stringByAppendingFormat:@"/MERGED_%@.mov", [dateFormat stringFromDate:[NSDate date]]];
-        NSLog(@"filePath : %@", filePath);
-        outputURL = [NSURL fileURLWithPath:filePath];
-        
-        AVAssetExportSession *exporter = [[AVAssetExportSession alloc] initWithAsset:comp presetName:(quality == LOW_QUALITY ? AVAssetExportPresetLowQuality : (quality == MEDIUM_QUALITY ? AVAssetExportPresetMediumQuality : AVAssetExportPresetHighestQuality))];
-        [exporter setOutputURL:outputURL];
-        [exporter setOutputFileType:AVFileTypeQuickTimeMovie];
-        [exporter exportAsynchronouslyWithCompletionHandler:^(void)
-         {
-             switch ([exporter status])
-             {
-                 case AVAssetExportSessionStatusFailed:
-                     NSLog(@"Video export failed: %@", [[exporter error] localizedDescription]);
-                     [self cleanUpAndFinish];
-                     break;
-                     
-                 case AVAssetExportSessionStatusCancelled:
-                     NSLog(@"Video export cancelled.");
-                     [self cleanUpAndFinish];
-                     break;
-                     
-                 case AVAssetExportSessionStatusCompleted:
-                     NSLog(@"Video export complete.");
-                     [self cleanUpAndFinish];
-                     break;
-                     
-                 default:
-                     break;
-             }
-         }];
+        else
+        {
+            // If there is more than one video
+            
+            [self performAvailableMerges];
+            
+            [self exportVideo];
+        }
     }
+}
+
+- (IBAction)onRestart:(id)sender
+{    
+    if (!finishing && videoURLs.count >= 1)
+    {        
+        videoURLs = [[NSMutableArray alloc] init];
+        videoLength = maxVideoLength = 0.0;
+        
+        recording = videoReady = finishing = NO;
+        videoURLsCondition = [[NSCondition alloc] init];
+        videoURLsLocked = NO;
+    }
+}
+
+- (void)hideController
+{    
+    // Hide the AppendableVideoMaker controller
+    
+    [self dismissViewControllerAnimated:YES completion:^(void)
+     {
+     }];
 }
 
 - (void)cleanUpAndFinish
 {
+    // Clear the videos list from memory
+    
     videoURLs = nil;
-    	
-    [self dismissViewControllerAnimated:YES completion:^(void)
-    {
-        videoReady = YES;
-    }];
+    lastVideoMerged = 0;
 }
 
 - (void)setMaximumVideoLength:(double)max
@@ -172,6 +288,30 @@
 - (double)getMaximumVideoLength
 {
     return maxVideoLength;
+}
+
+- (void)setQuality:(ExportQuality)vidQuality
+{
+    quality = vidQuality;
+}
+
+- (ExportQuality)getQuality
+{
+    return quality;
+}
+
+- (void)triggerVideoMergeComplete
+{
+    videoReady = YES;
+    [[NSNotificationCenter defaultCenter] postNotificationName:@"VideoMergeComplete"
+                                                        object:nil];
+}
+
+- (void)triggerVideoMergeFailed
+{
+    videoReady = NO;
+    [[NSNotificationCenter defaultCenter] postNotificationName:@"VideoMergeFailed"
+                                                        object:nil];
 }
 
 - (BOOL)videoIsReady

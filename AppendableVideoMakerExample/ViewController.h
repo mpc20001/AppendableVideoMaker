@@ -14,13 +14,18 @@
 {
     AppendableVideoMaker *videoMaker;
     MPMoviePlayerController *player;
+    BOOL deviceSupportsVideoRecording;
+    BOOL mergeCompleteEventReceived;
 }
 
-@property (weak, nonatomic) IBOutlet UIButton *createVideoBtn;
-@property (weak, nonatomic) IBOutlet UIButton *playVideoBtn;
+@property (weak, nonatomic) IBOutlet UIBarButtonItem *createVideoBtn;
+@property (weak, nonatomic) IBOutlet UIBarButtonItem *playVideoBtn;
 @property (weak, nonatomic) IBOutlet UIView *videoView;
 
 - (IBAction)onCreateVideo:(id)sender;
 - (IBAction)onPlayVideo:(id)sender;
+
+- (void)checkForVideoSupport;
+- (void)videoMergeCompleteHandler:(NSNotification*)notification;
 
 @end

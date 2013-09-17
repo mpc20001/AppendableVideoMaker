@@ -104,14 +104,14 @@
 		5524818B1749D62800F0F286 /* AppendableVideoMakerExample */ = {
 			isa = PBXGroup;
 			children = (
-				552481B11749DA8B00F0F286 /* AppendableVideoMaker.h */,
-				552481B21749DA8B00F0F286 /* AppendableVideoMaker.m */,
 				552481941749D62800F0F286 /* AppDelegate.h */,
 				552481951749D62800F0F286 /* AppDelegate.m */,
 				5524819D1749D62800F0F286 /* ViewController.h */,
 				5524819E1749D62800F0F286 /* ViewController.m */,
 				552481A01749D62800F0F286 /* ViewController_iPhone.xib */,
 				552481A31749D62800F0F286 /* ViewController_iPad.xib */,
+				552481B11749DA8B00F0F286 /* AppendableVideoMaker.h */,
+				552481B21749DA8B00F0F286 /* AppendableVideoMaker.m */,
 				5524818C1749D62800F0F286 /* Supporting Files */,
 			);
 			path = AppendableVideoMakerExample;

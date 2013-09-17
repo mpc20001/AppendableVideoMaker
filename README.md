@@ -55,4 +55,6 @@ NSURL *videoURL = [videoMaker getVideoURL];
 
 ## Contributors
 
-<a href="http://a.leks.be/er" target="_blank">Aleks Beer</a>
+<a href="https://twitter.com/AleksBeer" target="_blank">Aleks Beer</a>
+
+[![githalytics.com alpha](https://cruel-carlota.pagodabox.com/20474c2d20c32691c345993857c97b9c "githalytics.com")](http://githalytics.com/AleksBeer/AppendableVideoMaker)
