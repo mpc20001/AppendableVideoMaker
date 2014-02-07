@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>IDESourceControlProjectFavoriteDictionaryKey</key>
+	<false/>
+	<key>IDESourceControlProjectIdentifier</key>
+	<string>2D91C4E9-E2BB-4897-84CC-66C5C0BF20E8</string>
+	<key>IDESourceControlProjectName</key>
+	<string>AppendableVideoMakerExample</string>
+	<key>IDESourceControlProjectOriginsDictionary</key>
+	<dict>
+		<key>C7EA6AD9-731B-44C9-82C0-2A4E7C524AAB</key>
+		<string>https://github.com/AleksBeer/AppendableVideoMaker.git</string>
+	</dict>
+	<key>IDESourceControlProjectPath</key>
+	<string>AppendableVideoMakerExample.xcodeproj/project.xcworkspace</string>
+	<key>IDESourceControlProjectRelativeInstallPathDictionary</key>
+	<dict>
+		<key>C7EA6AD9-731B-44C9-82C0-2A4E7C524AAB</key>
+		<string>../..</string>
+	</dict>
+	<key>IDESourceControlProjectURL</key>
+	<string>https://github.com/AleksBeer/AppendableVideoMaker.git</string>
+	<key>IDESourceControlProjectVersion</key>
+	<integer>110</integer>
+	<key>IDESourceControlProjectWCCIdentifier</key>
+	<string>C7EA6AD9-731B-44C9-82C0-2A4E7C524AAB</string>
+	<key>IDESourceControlProjectWCConfigurations</key>
+	<array>
+		<dict>
+			<key>IDESourceControlRepositoryExtensionIdentifierKey</key>
+			<string>public.vcs.git</string>
+			<key>IDESourceControlWCCIdentifierKey</key>
+			<string>C7EA6AD9-731B-44C9-82C0-2A4E7C524AAB</string>
+			<key>IDESourceControlWCCName</key>
+			<string>AppendableVideoMaker</string>
+		</dict>
+	</array>
+</dict>
+</plist>

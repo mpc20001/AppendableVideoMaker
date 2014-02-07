@@ -35,15 +35,18 @@ typedef enum
     int lastVideoMerged;
     
     UIView* overlay;
-    
+    NSTimer *blinkTimer;
     NSCondition *videoURLsCondition;
     BOOL videoURLsLocked;
-    
+    UILabel * recordLabel;
     // Video stuff
     AVMutableComposition *composition;
     AVMutableCompositionTrack *compVideoTrack;
     AVMutableCompositionTrack *compAudioTrack;
     CMTime startTime;
+    UIAlertView * loadingAlert2;
+    AVMutableVideoCompositionLayerInstruction *firstlayerInstruction;
+    BOOL isFirstAssetPortrait_;
 }
 
 - (void)checkForAvailableMerges;

@@ -47,9 +47,9 @@
         }
         else
         {
-            // Deprecated in iOS 6
+
             
-            [self presentModalViewController:videoMaker animated:YES];
+             [self presentViewController:videoMaker animated:YES completion:nil];
         }
     }
     else
@@ -66,11 +66,12 @@
 {
     if ([videoMaker videoIsReady])
     {
-        player = [[MPMoviePlayerController alloc] initWithContentURL:[videoMaker getVideoURL]];
-        player.view.frame = self.videoView.bounds;
-        player.view.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-        [self.videoView addSubview:player.view];
-        [player play];
+        MPMoviePlayerViewController *movie = [[MPMoviePlayerViewController alloc] initWithContentURL:[videoMaker getVideoURL]];
+        [self presentMoviePlayerViewControllerAnimated:movie];
+        
+        
+        
+        
     }
     else if (![videoMaker videoIsReady])
     {

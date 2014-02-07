@@ -24,7 +24,7 @@
             
             videoURLs = [[NSMutableArray alloc] init];
             videoLength = maxVideoLength = 0.0;
-            quality = HIGH_QUALITY;
+            quality = MEDIUM_QUALITY;
             recording = videoReady = finishing = NO;
             videoURLsCondition = [[NSCondition alloc] init];
             videoURLsLocked = NO;
@@ -34,8 +34,10 @@
             self.sourceType = UIImagePickerControllerSourceTypeCamera;
             self.mediaTypes = [[NSArray alloc] initWithObjects: (NSString *) kUTTypeMovie, nil];
             self.showsCameraControls = NO;
+            self.cameraFlashMode = UIImagePickerControllerCameraFlashModeOff;
             self.navigationBarHidden = YES;
-            self.wantsFullScreenLayout = YES;
+            if ([self respondsToSelector:@selector(edgesForExtendedLayout)])
+                self.edgesForExtendedLayout = UIRectEdgeNone;
             self.delegate = self;
             self.toolbarHidden = YES;
             
@@ -72,8 +74,15 @@
                                                                                        action:nil];
             [toolBar setItems:[NSMutableArray arrayWithObjects:flexSpace, restartBtn, finishBtn, nil]];
             
-            // Setup video stuff
             
+            self->recordLabel= [[UILabel alloc]initWithFrame:CGRectMake(120, 44, 100, 50)];
+            self->recordLabel.textColor = [UIColor redColor];
+            self->recordLabel.text=@"Recording";
+            self->recordLabel.textAlignment = NSTextAlignmentLeft;
+            self->recordLabel.hidden=YES;
+            [overlay addSubview:self->recordLabel];
+            // Setup video stuff
+            [overlay bringSubviewToFront:recordLabel];
             composition = [AVMutableComposition composition];
             compVideoTrack = [composition addMutableTrackWithMediaType:AVMediaTypeVideo
                                                       preferredTrackID:kCMPersistentTrackID_Invalid];
@@ -121,9 +130,18 @@
 - (void)cleanUpAndFinish
 {
     // Clear the videos list from memory
-    
+    [loadingAlert2 dismissWithClickedButtonIndex:0 animated:YES];
     videoURLs = nil;
     lastVideoMerged = 0;
+    videoReady = YES;
+    [self performSelector:@selector(setHidden) withObject:nil afterDelay:0.5];
+    
+    
+}
+-(void)setHidden{
+    [[NSNotificationCenter defaultCenter] postNotificationName:@"AppendableVideoMaker_VideoMergeComplete"
+                                                        object:nil];
+
 }
 
 - (BOOL)deviceCanRecordVideos
@@ -142,6 +160,24 @@
     outputURL = [NSURL fileURLWithPath:filePath];
     
     AVAssetExportSession *exporter = [[AVAssetExportSession alloc] initWithAsset:composition presetName:(quality == LOW_QUALITY ? AVAssetExportPresetLowQuality : (quality == MEDIUM_QUALITY ? AVAssetExportPresetMediumQuality : AVAssetExportPresetHighestQuality))];
+    
+    AVMutableVideoCompositionInstruction *mainInstruction = [AVMutableVideoCompositionInstruction videoCompositionInstruction];
+    mainInstruction.timeRange = CMTimeRangeMake(kCMTimeZero, startTime);
+    
+    mainInstruction.layerInstructions = [NSArray arrayWithObjects:firstlayerInstruction,nil];
+    AVMutableVideoComposition *mainCompositionInst = [AVMutableVideoComposition videoComposition];
+    mainCompositionInst.instructions = [NSArray arrayWithObject:mainInstruction];
+    mainCompositionInst.frameDuration = CMTimeMake(1, 30);
+    mainInstruction.timeRange = CMTimeRangeMake(kCMTimeZero, startTime);
+    if(isFirstAssetPortrait_){
+        mainCompositionInst.renderSize = CGSizeMake(360.0, 480.0);
+        
+    }
+    else
+    {
+        mainCompositionInst.renderSize = CGSizeMake(480.0, 360.0);
+    }
+    exporter.videoComposition = mainCompositionInst;
     [exporter setOutputURL:outputURL];
     [exporter setOutputFileType:AVFileTypeQuickTimeMovie];
     [exporter exportAsynchronouslyWithCompletionHandler:^(void)
@@ -149,7 +185,7 @@
          switch ([exporter status])
          {
              case AVAssetExportSessionStatusFailed:
-                 NSLog(@"Video (final) export failed: %@", [[exporter error] localizedDescription]);
+                 NSLog(@"Video (final) export failed: %@", [exporter error] );
                  [self performSelectorOnMainThread:@selector(triggerVideoMergeFailed) withObject:nil waitUntilDone:NO];
                  break;
                  
@@ -205,6 +241,26 @@
     AVURLAsset *asset = [AVURLAsset URLAssetWithURL:videoURL options:nil];
     
     AVAssetTrack *videoTrack = [[asset tracksWithMediaType:AVMediaTypeVideo] objectAtIndex:0];
+    
+    UIImageOrientation firstAssetOrientation_  = UIImageOrientationUp;
+    isFirstAssetPortrait_  = NO;
+    CGAffineTransform firstTransform = videoTrack.preferredTransform;
+    if (firstTransform.a == 0 && firstTransform.b == 1.0 && firstTransform.c == -1.0 && firstTransform.d == 0) {
+        firstAssetOrientation_ = UIImageOrientationRight;
+        isFirstAssetPortrait_ = YES;
+    }
+    if (firstTransform.a == 0 && firstTransform.b == -1.0 && firstTransform.c == 1.0 && firstTransform.d == 0) {
+        firstAssetOrientation_ =  UIImageOrientationLeft;
+        isFirstAssetPortrait_ = YES;
+    }
+    if (firstTransform.a == 1.0 && firstTransform.b == 0 && firstTransform.c == 0 && firstTransform.d == 1.0) {
+        firstAssetOrientation_ =  UIImageOrientationUp;
+    }
+    if (firstTransform.a == -1.0 && firstTransform.b == 0 && firstTransform.c == 0 && firstTransform.d == -1.0) {
+        firstAssetOrientation_ = UIImageOrientationDown;
+    }
+   
+    
     [compVideoTrack insertTimeRange:CMTimeRangeMake(kCMTimeZero, [asset duration])
                             ofTrack:videoTrack
                              atTime:startTime
@@ -219,6 +275,11 @@
                                   error:&error];
     }
     
+    firstlayerInstruction = [AVMutableVideoCompositionLayerInstruction videoCompositionLayerInstructionWithAssetTrack:compVideoTrack];
+    
+    [firstlayerInstruction setTransform:firstTransform atTime:kCMTimeZero];
+
+   
     startTime = CMTimeAdd(startTime, [asset duration]);
 }
 
@@ -260,14 +321,14 @@
 }
 
 - (void)triggerVideoMergeComplete
-{
+{[loadingAlert2 dismissWithClickedButtonIndex:0 animated:YES];
     videoReady = YES;
     [[NSNotificationCenter defaultCenter] postNotificationName:@"AppendableVideoMaker_VideoMergeComplete"
                                                         object:nil];
 }
 
 - (void)triggerVideoMergeFailed
-{
+{[loadingAlert2 dismissWithClickedButtonIndex:0 animated:YES];
     videoReady = NO;
     [[NSNotificationCenter defaultCenter] postNotificationName:@"AppendableVideoMaker_VideoMergeFailed"
                                                         object:nil];
@@ -275,6 +336,7 @@
 
 - (BOOL)videoIsReady
 {
+    [loadingAlert2 dismissWithClickedButtonIndex:0 animated:YES];
     return videoReady;
 }
 
@@ -295,6 +357,7 @@
                     [self startVideoCapture];
                     timer = CFAbsoluteTimeGetCurrent();
                     recording = YES;
+                    self->blinkTimer = [NSTimer scheduledTimerWithTimeInterval:0.2 target:self selector:@selector(toggleLabelAlpha) userInfo:nil repeats:YES];
                 }
             }
             else
@@ -302,17 +365,22 @@
                 [self startVideoCapture];
                 timer = CFAbsoluteTimeGetCurrent();
                 recording = YES;
+                self->blinkTimer = [NSTimer scheduledTimerWithTimeInterval:0.2 target:self selector:@selector(toggleLabelAlpha) userInfo:nil repeats:YES];
             }
         }
         else if (recognizer.state == UIGestureRecognizerStateEnded)
         {
             if (recording)
             {
+                
+                [self->blinkTimer invalidate];
+                self->blinkTimer = nil;
                 [self stopVideoCapture];
                 videoLength += CFAbsoluteTimeGetCurrent() - timer;
                 NSLog(@"VIDEO LENGTH: %f", videoLength);
                 
                 [self checkForAvailableMerges];
+                self->recordLabel.hidden=YES;
             }
             recording = NO;
         }
@@ -320,7 +388,18 @@
 }
 
 - (IBAction)onFinish:(id)sender
+
+
 {
+    loadingAlert2 = [[UIAlertView alloc] initWithTitle: @"Converting..." message: nil delegate:self cancelButtonTitle: nil otherButtonTitles: nil];
+    UIActivityIndicatorView *progress= [[UIActivityIndicatorView alloc] initWithFrame: CGRectMake(125, 50, 30, 30)];
+    progress.activityIndicatorViewStyle = UIActivityIndicatorViewStyleWhiteLarge;
+    [loadingAlert2 addSubview: progress];
+    [progress startAnimating];
+    [loadingAlert2 show];
+    
+    
+    
     // Check if the finish button hasn't already been pressed and that there is at least one video stored
     [self hideController];
     
@@ -342,6 +421,8 @@
             
             [self exportVideo];
         }
+    }else{
+    [loadingAlert2 dismissWithClickedButtonIndex:0 animated:YES];
     }
 }
 
@@ -370,4 +451,10 @@
     NSLog(@"Cancel called.");
 }
 
+
+
+- (void)toggleLabelAlpha {
+    
+    [self->recordLabel setHidden:(!self->recordLabel.hidden)];
+}
 @end

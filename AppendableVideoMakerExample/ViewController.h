@@ -8,7 +8,7 @@
 
 #import <UIKit/UIKit.h>
 #import "AppendableVideoMaker.h"
-#import <MediaPlayer/MPMoviePlayerController.h>
+#import <MediaPlayer/MediaPlayer.h>
 
 @interface ViewController : UIViewController
 {
